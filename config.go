@@ -3,7 +3,7 @@ package configutils
 import (
 	"fmt"
 	"github.com/koofr/envigo"
-	"gopkg.in/yaml.v1"
+	"gopkg.in/koofr/yaml.v1"
 	"io/ioutil"
 )
 
