@@ -6,5 +6,5 @@ require (
 	github.com/koofr/envigo v0.0.0-20131112171155-b871d74a0be8
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.1
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )

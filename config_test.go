@@ -1,6 +1,7 @@
 package configutils_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -28,6 +29,15 @@ do: true
 pi: 3.14
 section:
   sectionkey: "sectionvalue"
+`
+
+const TestConfigUnknownKey = `
+key: "value"
+do: true
+pi: 3.14
+section:
+  sectionkey: "sectionvalue"
+unknown: "value"
 `
 
 const OverrideConfig1 = `
@@ -74,6 +84,41 @@ var _ = Describe("LoadConfig", func() {
 				SectionKey: "sectionvalue",
 			},
 		}))
+	})
+
+	It("should validate YAML keys", func() {
+		configFile := filepath.Join(tmp, "config.yaml")
+		writeConfig(configFile, TestConfigUnknownKey)
+
+		cfg := &Config{}
+
+		err := LoadConfig(configFile, cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("field unknown not found"))
+	})
+
+	It("should ignore unknown YAML keys", func() {
+		configFile := filepath.Join(tmp, "config.yaml")
+		writeConfig(configFile, TestConfigUnknownKey)
+
+		cfg := &Config{}
+
+		err := LoadConfig(configFile, cfg, YAMLValidateKeys(false))
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should patch YAML file", func() {
+		configFile := filepath.Join(tmp, "config.yaml")
+		writeConfig(configFile, TestConfig)
+
+		cfg := &Config{}
+
+		err := LoadConfig(configFile, cfg, YAMLPatchBytes(func(b []byte) []byte {
+			return bytes.ReplaceAll(b, []byte(`key: "value"`), []byte(`key: "patchedvalue"`))
+		}))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.Key).To(Equal("patchedvalue"))
 	})
 
 	It("should load config with env override", func() {
