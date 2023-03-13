@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/koofr/go-configutils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	. "github.com/koofr/go-configutils"
 )
 
 type Section struct {
@@ -288,6 +289,180 @@ var _ = Describe("LoadConfig", func() {
 
 		err := LoadConfig(configFile, cfg, EnvGetter(getenv))
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("LoadConfig envigo error: envigo PI parse float error: strconv.ParseFloat: parsing \"3,14\": invalid syntax"))
+		Expect(err.Error()).To(Equal("LoadConfig error: envigo error: envigo PI parse float error: strconv.ParseFloat: parsing \"3,14\": invalid syntax"))
+	})
+})
+
+var _ = Describe("LoadConfigBytes", func() {
+	It("should load config", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg).To(Equal(&Config{
+			Key: "value",
+			Do:  true,
+			Pi:  3.14,
+			Section: &Section{
+				SectionKey: "sectionvalue",
+			},
+		}))
+	})
+
+	It("should validate YAML keys", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfigUnknownKey), cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("field unknown not found"))
+	})
+
+	It("should ignore unknown YAML keys", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfigUnknownKey), cfg, YAMLValidateKeys(false))
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should patch YAML file", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, YAMLPatchBytes(func(b []byte) []byte {
+			return bytes.ReplaceAll(b, []byte(`key: "value"`), []byte(`key: "patchedvalue"`))
+		}))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg.Key).To(Equal("patchedvalue"))
+	})
+
+	It("should load config with env override", func() {
+		getenv := func(key string) (string, bool) {
+			switch key {
+			case "DO":
+				return "false", true
+			case "SECTION_SECTIONKEY":
+				return "sectionvalueoverride", true
+			default:
+				return "", false
+			}
+		}
+
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, EnvGetter(getenv))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg).To(Equal(&Config{
+			Key: "value",
+			Do:  false,
+			Pi:  3.14,
+			Section: &Section{
+				SectionKey: "sectionvalueoverride",
+			},
+		}))
+	})
+
+	It("should load config with env override and prefix", func() {
+		getenv := func(key string) (string, bool) {
+			switch key {
+			case "MYAPP_DO":
+				return "false", true
+			case "MYAPP_SECTION_SECTIONKEY":
+				return "sectionvalueoverride", true
+			default:
+				return "", false
+			}
+		}
+
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, EnvGetter(getenv), EnvPrefix("MYAPP"))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg).To(Equal(&Config{
+			Key: "value",
+			Do:  false,
+			Pi:  3.14,
+			Section: &Section{
+				SectionKey: "sectionvalueoverride",
+			},
+		}))
+	})
+
+	It("should load config without env override", func() {
+		getenv := func(key string) (string, bool) {
+			switch key {
+			case "DO":
+				return "false", true
+			case "SECTION_SECTIONKEY":
+				return "sectionvalueoverride", true
+			default:
+				return "", false
+			}
+		}
+
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, EnvGetter(getenv), DisableEnvOverride())
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg).To(Equal(&Config{
+			Key: "value",
+			Do:  true,
+			Pi:  3.14,
+			Section: &Section{
+				SectionKey: "sectionvalue",
+			},
+		}))
+	})
+
+	It("should load config with bytes override", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, OverrideConfigBytes([]byte(OverrideConfig1)), OverrideConfigBytes([]byte(OverrideConfig2)))
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(cfg).To(Equal(&Config{
+			Key: "value",
+			Do:  false,
+			Pi:  3.14,
+			Section: &Section{
+				SectionKey: "sectionvalueoverride",
+			},
+		}))
+	})
+
+	It("should not load invalid config", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(InvalidConfig), cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("yaml: unmarshal errors"))
+	})
+
+	It("should not load invalid override config", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, OverrideConfigBytes([]byte(InvalidConfig)))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("yaml: unmarshal errors"))
+	})
+
+	It("should not load config with error in env variable", func() {
+		getenv := func(key string) (string, bool) {
+			switch key {
+			case "PI":
+				return "3,14", true
+			default:
+				return "", false
+			}
+		}
+
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), cfg, EnvGetter(getenv))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("LoadConfigBytes error: envigo error: envigo PI parse float error: strconv.ParseFloat: parsing \"3,14\": invalid syntax"))
 	})
 })

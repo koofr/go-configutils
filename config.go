@@ -14,6 +14,7 @@ type LoadConfigOptions struct {
 	EnvPrefix           string
 	EnvGetter           envigo.EnvGetter
 	OverrideConfigFiles []string
+	OverrideConfigBytes [][]byte
 	YAMLValidateKeys    bool
 	YAMLPatchBytes      func(b []byte) []byte
 }
@@ -44,6 +45,12 @@ func OverrideConfigFile(configFile string) func(*LoadConfigOptions) {
 	}
 }
 
+func OverrideConfigBytes(configBytes []byte) func(*LoadConfigOptions) {
+	return func(opts *LoadConfigOptions) {
+		opts.OverrideConfigBytes = append(opts.OverrideConfigBytes, configBytes)
+	}
+}
+
 func YAMLValidateKeys(validate bool) func(*LoadConfigOptions) {
 	return func(opts *LoadConfigOptions) {
 		opts.YAMLValidateKeys = validate
@@ -71,6 +78,10 @@ func loadConfigFileOpts(configFile string, config interface{}, opts *LoadConfigO
 		return err
 	}
 
+	return loadConfigBytesOpts(configBytes, config, opts)
+}
+
+func loadConfigBytesOpts(configBytes []byte, config interface{}, opts *LoadConfigOptions) (err error) {
 	if opts.YAMLPatchBytes != nil {
 		configBytes = opts.YAMLPatchBytes(configBytes)
 	}
@@ -84,12 +95,13 @@ func loadConfigFileOpts(configFile string, config interface{}, opts *LoadConfigO
 	return decoder.Decode(config)
 }
 
-func LoadConfig(configFile string, config interface{}, optFuncs ...func(*LoadConfigOptions)) (err error) {
+func getOpts(optFuncs ...func(*LoadConfigOptions)) *LoadConfigOptions {
 	opts := &LoadConfigOptions{
 		EnvOverride:         true,
 		EnvPrefix:           "",
 		EnvGetter:           envigo.EnvironGetter(),
-		OverrideConfigFiles: []string{},
+		OverrideConfigFiles: nil,
+		OverrideConfigBytes: nil,
 		YAMLValidateKeys:    true,
 		YAMLPatchBytes:      nil,
 	}
@@ -98,20 +110,54 @@ func LoadConfig(configFile string, config interface{}, optFuncs ...func(*LoadCon
 		optFunc(opts)
 	}
 
-	if err = loadConfigFileOpts(configFile, config, opts); err != nil {
-		return fmt.Errorf("LoadConfig error: %w", err)
+	return opts
+}
+
+func applyOpts(config interface{}, opts *LoadConfigOptions) error {
+	for _, overrideConfigFile := range opts.OverrideConfigFiles {
+		if err := loadConfigFileOpts(overrideConfigFile, config, opts); err != nil {
+			return fmt.Errorf("override error: %w", err)
+		}
 	}
 
-	for _, overrideConfigFile := range opts.OverrideConfigFiles {
-		if err = loadConfigFileOpts(overrideConfigFile, config, opts); err != nil {
-			return fmt.Errorf("LoadConfig override error: %w", err)
+	for _, overrideConfigBytes := range opts.OverrideConfigBytes {
+		if err := loadConfigBytesOpts(overrideConfigBytes, config, opts); err != nil {
+			return fmt.Errorf("override error: %w", err)
 		}
 	}
 
 	if opts.EnvOverride {
-		if err = envigo.Envigo(config, opts.EnvPrefix, opts.EnvGetter); err != nil {
-			return fmt.Errorf("LoadConfig envigo error: %w", err)
+		if err := envigo.Envigo(config, opts.EnvPrefix, opts.EnvGetter); err != nil {
+			return fmt.Errorf("envigo error: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func LoadConfig(configFile string, config interface{}, optFuncs ...func(*LoadConfigOptions)) (err error) {
+	opts := getOpts(optFuncs...)
+
+	if err := loadConfigFileOpts(configFile, config, opts); err != nil {
+		return fmt.Errorf("LoadConfig error: %w", err)
+	}
+
+	if err := applyOpts(config, opts); err != nil {
+		return fmt.Errorf("LoadConfig error: %w", err)
+	}
+
+	return nil
+}
+
+func LoadConfigBytes(configFileBytes []byte, config interface{}, optFuncs ...func(*LoadConfigOptions)) (err error) {
+	opts := getOpts(optFuncs...)
+
+	if err = loadConfigBytesOpts(configFileBytes, config, opts); err != nil {
+		return fmt.Errorf("LoadConfigBytes error: %w", err)
+	}
+
+	if err := applyOpts(config, opts); err != nil {
+		return fmt.Errorf("LoadConfigBytes error: %w", err)
 	}
 
 	return nil
