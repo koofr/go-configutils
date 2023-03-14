@@ -87,6 +87,27 @@ var _ = Describe("LoadConfig", func() {
 		}))
 	})
 
+	It("should load config with pointer to pointer", func() {
+		configFile := filepath.Join(tmp, "config.yaml")
+		writeConfig(configFile, TestConfig)
+
+		cfg := &Config{}
+
+		err := LoadConfig(configFile, &cfg)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should load config with pointer to pointer to pointer", func() {
+		configFile := filepath.Join(tmp, "config.yaml")
+		writeConfig(configFile, TestConfig)
+
+		cfg := &Config{}
+		c := &cfg
+
+		err := LoadConfig(configFile, &c)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 	It("should validate YAML keys", func() {
 		configFile := filepath.Join(tmp, "config.yaml")
 		writeConfig(configFile, TestConfigUnknownKey)
@@ -308,6 +329,21 @@ var _ = Describe("LoadConfigBytes", func() {
 				SectionKey: "sectionvalue",
 			},
 		}))
+	})
+
+	It("should load config with pointer to pointer", func() {
+		cfg := &Config{}
+
+		err := LoadConfigBytes([]byte(TestConfig), &cfg)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should load config with pointer to pointer to pointer", func() {
+		cfg := &Config{}
+		c := &cfg
+
+		err := LoadConfigBytes([]byte(TestConfig), &c)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should validate YAML keys", func() {

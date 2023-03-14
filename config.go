@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"reflect"
 
 	"github.com/koofr/envigo"
 	yaml "gopkg.in/yaml.v3"
@@ -138,6 +139,10 @@ func applyOpts(config interface{}, opts *LoadConfigOptions) error {
 func LoadConfig(configFile string, config interface{}, optFuncs ...func(*LoadConfigOptions)) (err error) {
 	opts := getOpts(optFuncs...)
 
+	for reflect.ValueOf(config).Kind() == reflect.Ptr && reflect.ValueOf(config).Elem().Kind() == reflect.Ptr {
+		config = reflect.ValueOf(config).Elem().Interface()
+	}
+
 	if err := loadConfigFileOpts(configFile, config, opts); err != nil {
 		return fmt.Errorf("LoadConfig error: %w", err)
 	}
@@ -151,6 +156,10 @@ func LoadConfig(configFile string, config interface{}, optFuncs ...func(*LoadCon
 
 func LoadConfigBytes(configFileBytes []byte, config interface{}, optFuncs ...func(*LoadConfigOptions)) (err error) {
 	opts := getOpts(optFuncs...)
+
+	for reflect.ValueOf(config).Kind() == reflect.Ptr && reflect.ValueOf(config).Elem().Kind() == reflect.Ptr {
+		config = reflect.ValueOf(config).Elem().Interface()
+	}
 
 	if err = loadConfigBytesOpts(configFileBytes, config, opts); err != nil {
 		return fmt.Errorf("LoadConfigBytes error: %w", err)
