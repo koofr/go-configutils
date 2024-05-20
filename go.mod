@@ -1,6 +1,6 @@
 module github.com/koofr/go-configutils
 
-go 1.18
+go 1.21
 
 require (
 	github.com/koofr/envigo v0.0.0-20131112171155-b871d74a0be8
